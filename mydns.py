@@ -11,7 +11,7 @@ def labelsToDomainName(message: bytes, nameIdx: int):
     pointer = nameIdx
     
     while message[pointer] != 0:
-        # convert potential compressed name to binary
+        # get flag information for potential compressed message
         flag = bin(message[pointer] >> 6)
 
         # If the first two bits are 11, point to offset
@@ -38,8 +38,30 @@ class DnsQuestion():
     def __init__(self, message: bytes):
         self.message = message
 
-    # def getName(self):
-    #     return self.message[]
+    @classmethod
+    def fromScratch(cls, domainName: str, qType: bytes = b'\x00\x01', \
+        qClass: bytes = b'\x00\x01'):
+        message = b''
+
+        labels = domainName.split('.')
+        for label in labels:
+            labelLen = len(label)
+            message += labelLen.to_bytes(1, byteorder='big')
+            message += label.encode()
+
+        message += b'\x00'
+        message += qType
+        message += qClass
+        print(message)
+        return cls(message)
+
+    def getName(self):
+        return labelsToDomainName(self.message, 0)
+
+# class DnsRecordResource():
+#     def __init__(self):
+
+
 
 class DnsMessage():
     def __init__(self, message: bytes):
@@ -102,6 +124,7 @@ message = iden + flags + numQs + numAns + \
 
 # # get turn the offset binary to int
 # print(int(binOut[4:], 2)) 
-print(host)
-test = labelsToDomainName(host, 0)
-print(test)
+q = DnsQuestion.fromScratch(domainName='cs.fiu.edu')
+print(q.getName())
+# test = labelsToDomainName(host, 0)
+# print(test)
