@@ -111,32 +111,6 @@ def dnsRecordBytesToDict(message: bytes, start: int, isAuthoritative = False):
     return (record, pointer)
 
 
-
-# class DnsQuestion():
-#     def __init__(self, message: bytes):
-#         self.message = message
-
-#     @classmethod
-#     def fromScratch(cls, domainName: str, qType: bytes = b'\x00\x01', \
-#         qClass: bytes = b'\x00\x01'):
-#         message = b''
-
-#         labels = domainName.split('.')
-#         for label in labels:
-#             labelLen = len(label)
-#             message += labelLen.to_bytes(1, byteorder='big')
-#             message += label.encode()
-
-#         message += b'\x00'
-#         message += qType
-#         message += qClass
-#         print(message)
-#         return cls(message)
-
-#     def getName(self):
-#         return labelsToDomainName(self.message, 0)
-
-
 class DnsMessage():
     def __init__(self, message: bytes):
         self.message = message
@@ -185,37 +159,32 @@ class DnsMessage():
 
                 ip = []
                 for byte in info.get('data'):
-                    print(byte)
                     ip.append(str(byte))
 
                 info['data'] = '.'.join(ip)
-                print(info.get('data'))
                 addInfos.append(info)
         self.additionalInfo = addInfos
+
+    def __str__(self):
+        temp = 'DNS Response Message\n'
+        temp += '\t%d Questions.\n' % self.numQuestions
+        temp += '\t%d Answers.\n' % self.numAnswers
+        temp += '\t%d Authoritative Name Servers.\n' % self.numAuthority
+        temp += '\t%d Additional Information.\n' % self.numAdditional
+
+        temp += 'Answers Section:\n'
+        for resp in self.answers:
+            temp += '\tName: %s\tIP: %s\n' % (resp.get('name'), resp.get('data'))
+
+        temp += 'Authoritive Section:\n'
+        for resp in self.authorities:
+            temp += '\tName: %s\tName Server: %s\n' % (resp.get('name'), resp.get('data'))
+
+        temp += 'Additional Information Section: \n'
+        for resp in self.additionalInfo:
+            temp += '\tName: %s\t\tIP: %s\n' % (resp.get('name'), resp.get('data'))
+        return temp
         
-
-
-        
-
-
-
-
-    # def getQuestions(self):
-    #     '''Returns the array of DNS questions.'''
-    #     qs = []
-    #     if self.numQuestions != 0:
-    #         # question block starts at byte 12
-    #         pointer = 12
-    #         for i in range(self.numQuestions):
-    #             q, pointer = dnsQuestionBytesToDict(self.message, pointer)
-    #             qs.append(q)
-    #     return qs
-    
-    # def getAnswers(self):
-    #     ans = []
-    #     if self.numAnswers != 0:
-
-
 
 ##########################
 # Testing cs.fiu.edu
@@ -242,14 +211,16 @@ data, addr = sock.recvfrom(1024)
 print("received message: %s \n NumBytes: %d" % (data, len(data)))
 dnsMessage = DnsMessage(data)
 
-print('quesitons')
-print(dnsMessage.questions)
-print('answers')
-print(dnsMessage.answers)
-print('authoratative')
-print(dnsMessage.authorities)
-print('additional info')
-print(dnsMessage.additionalInfo)
+print(dnsMessage.__str__())
+
+# print('quesitons')
+# print(dnsMessage.questions)
+# print('answers')
+# print(dnsMessage.answers)
+# print('authoratative')
+# print(dnsMessage.authorities)
+# print('additional info')
+# print(dnsMessage.additionalInfo)
 sock.close()
 
 # test = b'\xc0\x13'
