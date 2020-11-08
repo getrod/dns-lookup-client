@@ -159,6 +159,7 @@ class DnsMessage():
                     ip.append(str(byte))
 
                 info['data'] = '.'.join(ip)
+                
                 addInfos.append(info)
         self.additionalInfo = addInfos
 
@@ -200,7 +201,7 @@ class DnsMessage():
         
 
 # Ensure user gives at least 2 arguments
-if (len(sys.argv) - 1 < 2):
+if len(sys.argv) - 1 < 2:
     print("Usage: mydns.py domain-name root-dns-ip")
     sys.exit()
 
@@ -208,33 +209,35 @@ domainName = sys.argv[1]
 rootDnsIp = sys.argv[2]
 rootDnsPort = 53
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-# ##########################
-# # Testing cs.fiu.edu
-# iden = b'\x22\x33'
-# flags = b'\x00\x00'
-# numQs = b'\x00\x01'
-# numAns = b'\x00\x00'
-# numAuth = b'\x00\x00'
-# numAdd = b'\x00\x00'
-# host = b'\x02cs\x03fiu\x03edu\x00'
-# rrType = b'\x00\x01'    # Type A
-# rrClass = b'\x00\x01'   # Class I
-
-# message = iden + flags + numQs + numAns + \
-#     numAuth + numAdd + host + \
-#     rrType + rrClass
-# ##########################
-
+# Send and recieve first message from root server
+print('Querying DNS server: %s' % rootDnsIp)
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 message = DnsMessage.quesiton(domainName).message
-
 sock.sendto(message, (rootDnsIp, rootDnsPort))
-
 data, addr = sock.recvfrom(1024)
-dnsMessage = DnsMessage(data)
+resp = DnsMessage(data)
+print(resp)
+sock.close()
 
-print(dnsMessage)
+while resp.numAnswers == 0:
+    # Pick a name server from the addition information section
+    nsIp = resp.additionalInfo[0].get('data')
+    nsPort = 53
+
+    # Connect to the new name server and receive a response
+    print('Querying DNS server: %s' % nsIp)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    message = DnsMessage.quesiton(domainName).message
+    sock.sendto(message, (nsIp, nsPort))
+    data, addr = sock.recvfrom(1024)
+    resp = DnsMessage(data)
+    print(resp)
+    sock.close()
+
+
+
+
+# print(resp)
 
 # print('quesitons')
 # print(dnsMessage.questions)
@@ -244,7 +247,7 @@ print(dnsMessage)
 # print(dnsMessage.authorities)
 # print('additional info')
 # print(dnsMessage.additionalInfo)
-sock.close()
+
 
 # test = b'\xc0\x13'
 # print(test[0] >> 6 )
