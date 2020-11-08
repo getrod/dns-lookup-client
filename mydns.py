@@ -164,7 +164,6 @@ class DnsMessage():
         if self.numAnswers != 0:
             for i in range(self.numAnswers):
                 a, pointer = dnsRecordBytesToDict(self.message, pointer) 
-                # a['name'] = labelsToDomainName(a.get('name'), 0)
                 ans.append(a)
         self.answers = ans
 
@@ -173,7 +172,6 @@ class DnsMessage():
         if self.numAuthority != 0:
             for i in range(self.numAuthority):
                 auth, pointer = dnsRecordBytesToDict(self.message, pointer, isAuthoritative=True)
-                # auth['data'] = labelsToDomainName(self.message, pointer)
                 auths.append(auth)
         self.authorities = auths
 
@@ -184,6 +182,14 @@ class DnsMessage():
             for i in range(self.numAdditional):
                 info, pointer = dnsRecordBytesToDict(self.message, pointer)
                 if info.get('type') == b'\x00\x1c': continue    # skip type AAAA
+
+                ip = []
+                for byte in info.get('data'):
+                    print(byte)
+                    ip.append(str(byte))
+
+                info['data'] = '.'.join(ip)
+                print(info.get('data'))
                 addInfos.append(info)
         self.additionalInfo = addInfos
         
@@ -227,7 +233,6 @@ message = iden + flags + numQs + numAns + \
     numAuth + numAdd + host + \
     rrType + rrClass
 ##########################
-print(message)
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
