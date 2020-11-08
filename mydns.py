@@ -3,19 +3,25 @@ import socket
 rootDnsIp = '202.12.27.33'
 rootDnsPort = 53
 
-def labelsToDomainName(message: bytes, start: int):
+def labelsToDomainName(message: bytes, start: int = 0):
     '''Constructs a domain name string with DNS message. Ex: 'cs.fiu.edu'.
     start points to the first byte of the domain name.
     Pointer points after the terminating byte \x00.'''
     labels = []
     pointer = start
-    
+    jumped = False
+    tempPointer = 0
+
     while message[pointer] != 0:
+
         # get flag information for potential compressed message
         flag = bin(message[pointer] >> 6)
 
         # If the first two bits are 11, point to offset
         if flag[2:4] == '11':
+            if jumped == False: 
+                jumped = True
+                tempPointer = pointer
             binOut = bin(int.from_bytes(message[pointer : pointer + 2], 'big'))
             offset = int(binOut[4:], 2)
             pointer = offset
@@ -29,8 +35,11 @@ def labelsToDomainName(message: bytes, start: int):
         
         # Point to next potential label
         pointer += labelLength
+        
 
     pointer += 1
+    if jumped:
+        pointer = tempPointer + 2     # point to byte after compressed name
     return ('.'.join(labels), pointer)
 
 def domainNameToLables(domainName: str):
@@ -46,19 +55,18 @@ def domainNameToLables(domainName: str):
 
 
 def dnsQuestionBytesToDict(message: bytes, start: int):
-    '''start refers to the first byte of the dns question block'''
+    '''start refers to the first byte of the dns question block.
+    pointer points to next by'''
     name, pointer = labelsToDomainName(message, start)
     qType = message[pointer : pointer + 2]
     pointer += 2
     qClass = message[pointer : pointer + 2]
-
-    return {'name': name, 'type': qType, 'class': qClass}
+    pointer += 2
+    return ({'name': name, 'type': qType, 'class': qClass}, pointer)
 
 def dnsQuestionDictToBytes(dnsDict):
     '''start refers to the first byte of the dns question block'''
     message = b''
-    print((dnsDict))
-    print(type(dnsDict.get('name')))
     labels = dnsDict.get('name').split('.')
     
     for label in labels:
@@ -70,6 +78,37 @@ def dnsQuestionDictToBytes(dnsDict):
     message += dnsDict.get('type')
     message += dnsDict.get('class')
     return message
+
+def dnsRecordBytesToDict(message: bytes, start: int, isAuthoritative = False):
+    '''start refers to the first byte of the dns resource block'''
+    name, pointer = labelsToDomainName(message, start)
+    rrType = message[pointer : pointer + 2]
+    pointer += 2
+
+    rrClass = message[pointer : pointer + 2]
+    pointer += 2
+
+    ttl = message[pointer : pointer + 4]
+    pointer += 4
+
+    dataLength = int.from_bytes(message[pointer : pointer + 2], 'big')
+    pointer += 2
+
+    if isAuthoritative: 
+        data, pointer = labelsToDomainName(message, pointer)
+    else: 
+        data = message[pointer : pointer + dataLength]
+        pointer += dataLength
+    
+    record = {
+        'name': name, 
+        'type': rrType, 
+        'class': rrClass, 
+        'ttl': ttl, 
+        'dataLenth': dataLength,
+        'data': data
+    }
+    return (record, pointer)
 
 
 
@@ -101,24 +140,74 @@ def dnsQuestionDictToBytes(dnsDict):
 class DnsMessage():
     def __init__(self, message: bytes):
         self.message = message
-    
-    def getId(self) -> bytes:
-        return self.message[0:2]
-    
-    def getFlag(self) -> bytes:
-        return self.messags[2:4]
+        self.Id = self.message[0:2]
+        self.flags = self.message[2:4]
+        self.numQuestions = int.from_bytes(self.message[4:6], 'big')
+        self.numAnswers = int.from_bytes(self.message[6:8], 'big')
+        self.numAuthority = int.from_bytes(self.message[8:10], 'big')
+        self.numAdditional = int.from_bytes(self.message[10:12], 'big')
 
-    def numQuestions(self) -> bytes:
-        return self.message[4:6]
-    
-    def numAnswers(self) -> bytes:
-        return self.message[6:8]
-    
-    def numAuthority(self) -> bytes:
-        return self.message[8:10]
+        pointer = 0
+        '''Get DNS questions.'''
+        qs = []
+        if self.numQuestions != 0:
+            # question block starts at byte 12
+            pointer = 12
+            for i in range(self.numQuestions):
+                q, pointer = dnsQuestionBytesToDict(self.message, pointer)
+                qs.append(q)
 
-    def numAddition(self) -> bytes:
-        return self.message[10:12]
+        self.questions = qs
+
+        '''Get DNS answers'''
+        ans = []
+        if self.numAnswers != 0:
+            for i in range(self.numAnswers):
+                a, pointer = dnsRecordBytesToDict(self.message, pointer) 
+                # a['name'] = labelsToDomainName(a.get('name'), 0)
+                ans.append(a)
+        self.answers = ans
+
+        '''Get DNS authorities'''
+        auths = []
+        if self.numAuthority != 0:
+            for i in range(self.numAuthority):
+                auth, pointer = dnsRecordBytesToDict(self.message, pointer, isAuthoritative=True)
+                # auth['data'] = labelsToDomainName(self.message, pointer)
+                auths.append(auth)
+        self.authorities = auths
+
+        '''Get DNS additional'''
+        addInfos = []
+        if self.numAdditional != 0:
+            print('num additional: ', self.numAdditional)
+            for i in range(self.numAdditional):
+                info, pointer = dnsRecordBytesToDict(self.message, pointer)
+                addInfos.append(info)
+        self.additionalInfo = addInfos
+        
+
+
+        
+
+
+
+
+    # def getQuestions(self):
+    #     '''Returns the array of DNS questions.'''
+    #     qs = []
+    #     if self.numQuestions != 0:
+    #         # question block starts at byte 12
+    #         pointer = 12
+    #         for i in range(self.numQuestions):
+    #             q, pointer = dnsQuestionBytesToDict(self.message, pointer)
+    #             qs.append(q)
+    #     return qs
+    
+    # def getAnswers(self):
+    #     ans = []
+    #     if self.numAnswers != 0:
+
 
 
 ##########################
@@ -137,15 +226,25 @@ message = iden + flags + numQs + numAns + \
     numAuth + numAdd + host + \
     rrType + rrClass
 ##########################
-# print(message)
+print(message)
 
-# sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-# sock.sendto(message, (rootDnsIp, rootDnsPort))
+sock.sendto(message, (rootDnsIp, rootDnsPort))
 
-# data, addr = sock.recvfrom(1024)
-# print("received message: %s" % data)
-# sock.close()
+data, addr = sock.recvfrom(1024)
+print("received message: %s \n NumBytes: %d" % (data, len(data)))
+dnsMessage = DnsMessage(data)
+
+print('quesitons')
+print(dnsMessage.questions)
+print('answers')
+print(dnsMessage.answers)
+print('authoratative')
+print(dnsMessage.authorities)
+print('additional info')
+print(dnsMessage.additionalInfo)
+sock.close()
 
 # test = b'\xc0\x13'
 # print(test[0] >> 6 )
@@ -159,14 +258,18 @@ message = iden + flags + numQs + numAns + \
 
 # # get turn the offset binary to int
 # print(int(binOut[4:], 2)) 
-qBlock = host + rrType + rrClass
-print('qBlock:')
-print(qBlock)
-q = dnsQuestionBytesToDict(qBlock, 0)
-print('DnsDict:')
-print(q)
-print('converting dnsDict to bytes:')
-q = dnsQuestionDictToBytes(q)
-print(q)
+
+
+# qBlock = host + rrType + rrClass
+# print('qBlock:')
+# print(qBlock)
+# q = dnsQuestionBytesToDict(qBlock, 0)
+# print('DnsDict:')
+# print(q)
+# print('converting dnsDict to bytes:')
+# q = dnsQuestionDictToBytes(q)
+# print(q)
+
+
 # test = labelsToDomainName(host, 0)
 # print(test)
