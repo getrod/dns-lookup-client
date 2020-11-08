@@ -1,7 +1,5 @@
+import sys
 import socket
-
-rootDnsIp = '202.12.27.33'
-rootDnsPort = 53
 
 def labelsToDomainName(message: bytes, start: int = 0):
     '''Constructs a domain name string with DNS message. Ex: 'cs.fiu.edu'.
@@ -152,7 +150,6 @@ class DnsMessage():
         '''Get DNS additional'''
         addInfos = []
         if self.numAdditional != 0:
-            print('num additional: ', self.numAdditional)
             for i in range(self.numAdditional):
                 info, pointer = dnsRecordBytesToDict(self.message, pointer)
                 if info.get('type') == b'\x00\x1c': continue    # skip type AAAA
@@ -164,6 +161,22 @@ class DnsMessage():
                 info['data'] = '.'.join(ip)
                 addInfos.append(info)
         self.additionalInfo = addInfos
+
+    @classmethod
+    def quesiton(cls, domainName: str):
+        iden = b'\x22\x33'
+        flags = b'\x00\x00'
+        numQs = b'\x00\x01'
+        numAns = b'\x00\x00'
+        numAuth = b'\x00\x00'
+        numAdd = b'\x00\x00'
+        host = domainNameToLables(domainName)
+        rrType = b'\x00\x01'    # Type A
+        rrClass = b'\x00\x01'   # Class I
+        message = iden + flags + numQs + numAns + \
+            numAuth + numAdd + host + \
+            rrType + rrClass
+        return cls(message)
 
     def __str__(self):
         temp = 'DNS Response Message\n'
@@ -186,32 +199,42 @@ class DnsMessage():
         return temp
         
 
-##########################
-# Testing cs.fiu.edu
-iden = b'\x22\x33'
-flags = b'\x00\x00'
-numQs = b'\x00\x01'
-numAns = b'\x00\x00'
-numAuth = b'\x00\x00'
-numAdd = b'\x00\x00'
-host = b'\x02cs\x03fiu\x03edu\x00'
-rrType = b'\x00\x01'    # Type A
-rrClass = b'\x00\x01'   # Class I
+# Ensure user gives at least 2 arguments
+if (len(sys.argv) - 1 < 2):
+    print("Usage: mydns.py domain-name root-dns-ip")
+    sys.exit()
 
-message = iden + flags + numQs + numAns + \
-    numAuth + numAdd + host + \
-    rrType + rrClass
-##########################
+domainName = sys.argv[1]
+rootDnsIp = sys.argv[2]
+rootDnsPort = 53
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+# ##########################
+# # Testing cs.fiu.edu
+# iden = b'\x22\x33'
+# flags = b'\x00\x00'
+# numQs = b'\x00\x01'
+# numAns = b'\x00\x00'
+# numAuth = b'\x00\x00'
+# numAdd = b'\x00\x00'
+# host = b'\x02cs\x03fiu\x03edu\x00'
+# rrType = b'\x00\x01'    # Type A
+# rrClass = b'\x00\x01'   # Class I
+
+# message = iden + flags + numQs + numAns + \
+#     numAuth + numAdd + host + \
+#     rrType + rrClass
+# ##########################
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+message = DnsMessage.quesiton(domainName).message
 
 sock.sendto(message, (rootDnsIp, rootDnsPort))
 
 data, addr = sock.recvfrom(1024)
-print("received message: %s \n NumBytes: %d" % (data, len(data)))
 dnsMessage = DnsMessage(data)
 
-print(dnsMessage.__str__())
+print(dnsMessage)
 
 # print('quesitons')
 # print(dnsMessage.questions)
