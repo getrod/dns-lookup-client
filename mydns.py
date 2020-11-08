@@ -3,12 +3,12 @@ import socket
 rootDnsIp = '202.12.27.33'
 rootDnsPort = 53
 
-def labelsToDomainName(message: bytes, nameIdx: int):
-    '''Constructs a domain name string with DNS message
-    in the format label1.label2.lable3. Ex: 'cs.fiu.edu'.
-    nameIdx should point to the length of a label'''
+def labelsToDomainName(message: bytes, start: int):
+    '''Constructs a domain name string with DNS message. Ex: 'cs.fiu.edu'.
+    start points to the first byte of the domain name.
+    Pointer points after the terminating byte \x00.'''
     labels = []
-    pointer = nameIdx
+    pointer = start
     
     while message[pointer] != 0:
         # get flag information for potential compressed message
@@ -30,37 +30,72 @@ def labelsToDomainName(message: bytes, nameIdx: int):
         # Point to next potential label
         pointer += labelLength
 
-    return '.'.join(labels)
+    pointer += 1
+    return ('.'.join(labels), pointer)
+
+def domainNameToLables(domainName: str):
+    message = b''
+    labels = domainName.split('.')
+    for label in labels:
+        labelLen = len(label)
+        message += labelLen.to_bytes(1, byteorder='big')
+        message += label.encode()
+
+    message += b'\x00'
+    return message
+
+
+def dnsQuestionBytesToDict(message: bytes, start: int):
+    '''start refers to the first byte of the dns question block'''
+    name, pointer = labelsToDomainName(message, start)
+    qType = message[pointer : pointer + 2]
+    pointer += 2
+    qClass = message[pointer : pointer + 2]
+
+    return {'name': name, 'type': qType, 'class': qClass}
+
+def dnsQuestionDictToBytes(dnsDict):
+    '''start refers to the first byte of the dns question block'''
+    message = b''
+    print((dnsDict))
+    print(type(dnsDict.get('name')))
+    labels = dnsDict.get('name').split('.')
+    
+    for label in labels:
+        labelLen = len(label)
+        message += labelLen.to_bytes(1, byteorder='big')
+        message += label.encode()
+
+    message += b'\x00'
+    message += dnsDict.get('type')
+    message += dnsDict.get('class')
+    return message
 
 
 
-class DnsQuestion():
-    def __init__(self, message: bytes):
-        self.message = message
+# class DnsQuestion():
+#     def __init__(self, message: bytes):
+#         self.message = message
 
-    @classmethod
-    def fromScratch(cls, domainName: str, qType: bytes = b'\x00\x01', \
-        qClass: bytes = b'\x00\x01'):
-        message = b''
+#     @classmethod
+#     def fromScratch(cls, domainName: str, qType: bytes = b'\x00\x01', \
+#         qClass: bytes = b'\x00\x01'):
+#         message = b''
 
-        labels = domainName.split('.')
-        for label in labels:
-            labelLen = len(label)
-            message += labelLen.to_bytes(1, byteorder='big')
-            message += label.encode()
+#         labels = domainName.split('.')
+#         for label in labels:
+#             labelLen = len(label)
+#             message += labelLen.to_bytes(1, byteorder='big')
+#             message += label.encode()
 
-        message += b'\x00'
-        message += qType
-        message += qClass
-        print(message)
-        return cls(message)
+#         message += b'\x00'
+#         message += qType
+#         message += qClass
+#         print(message)
+#         return cls(message)
 
-    def getName(self):
-        return labelsToDomainName(self.message, 0)
-
-# class DnsRecordResource():
-#     def __init__(self):
-
+#     def getName(self):
+#         return labelsToDomainName(self.message, 0)
 
 
 class DnsMessage():
@@ -124,7 +159,14 @@ message = iden + flags + numQs + numAns + \
 
 # # get turn the offset binary to int
 # print(int(binOut[4:], 2)) 
-q = DnsQuestion.fromScratch(domainName='cs.fiu.edu')
-print(q.getName())
+qBlock = host + rrType + rrClass
+print('qBlock:')
+print(qBlock)
+q = dnsQuestionBytesToDict(qBlock, 0)
+print('DnsDict:')
+print(q)
+print('converting dnsDict to bytes:')
+q = dnsQuestionDictToBytes(q)
+print(q)
 # test = labelsToDomainName(host, 0)
 # print(test)
