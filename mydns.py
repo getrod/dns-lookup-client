@@ -96,6 +96,12 @@ def dnsRecordBytesToDict(message: bytes, start: int, isAuthoritative = False):
         data, pointer = labelsToDomainName(message, pointer)
     else: 
         data = message[pointer : pointer + dataLength]
+
+        ip = []
+        for byte in data:
+            ip.append(str(byte))
+        data = '.'.join(ip)
+
         pointer += dataLength
     
     record = {
@@ -154,12 +160,6 @@ class DnsMessage():
                 info, pointer = dnsRecordBytesToDict(self.message, pointer)
                 if info.get('type') == b'\x00\x1c': continue    # skip type AAAA
 
-                ip = []
-                for byte in info.get('data'):
-                    ip.append(str(byte))
-
-                info['data'] = '.'.join(ip)
-                
                 addInfos.append(info)
         self.additionalInfo = addInfos
 
@@ -233,46 +233,3 @@ while resp.numAnswers == 0:
     resp = DnsMessage(data)
     print(resp)
     sock.close()
-
-
-
-
-# print(resp)
-
-# print('quesitons')
-# print(dnsMessage.questions)
-# print('answers')
-# print(dnsMessage.answers)
-# print('authoratative')
-# print(dnsMessage.authorities)
-# print('additional info')
-# print(dnsMessage.additionalInfo)
-
-
-# test = b'\xc0\x13'
-# print(test[0] >> 6 )
-# print(int.from_bytes(test, 'big') )
-
-# # convert bytes to binary
-# binOut = bin(int.from_bytes(test, 'big'))
-
-# # check if first two bits are 11
-# print(binOut[2:4] == '11')
-
-# # get turn the offset binary to int
-# print(int(binOut[4:], 2)) 
-
-
-# qBlock = host + rrType + rrClass
-# print('qBlock:')
-# print(qBlock)
-# q = dnsQuestionBytesToDict(qBlock, 0)
-# print('DnsDict:')
-# print(q)
-# print('converting dnsDict to bytes:')
-# q = dnsQuestionDictToBytes(q)
-# print(q)
-
-
-# test = labelsToDomainName(host, 0)
-# print(test)
