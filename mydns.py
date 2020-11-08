@@ -183,6 +183,7 @@ class DnsMessage():
             print('num additional: ', self.numAdditional)
             for i in range(self.numAdditional):
                 info, pointer = dnsRecordBytesToDict(self.message, pointer)
+                if info.get('type') == b'\x00\x1c': continue    # skip type AAAA
                 addInfos.append(info)
         self.additionalInfo = addInfos
         
